@@ -28,6 +28,7 @@ public struct CalendarView: UIViewRepresentable {
 	private enum Selection {
 		case singleDate(Binding<DateComponents?>)
 		case multiDate(Binding<[DateComponents]>)
+        case onTap((DateComponents) -> Void)
 	}
 	
 	@Environment(\.calendar) private var calendar
@@ -83,6 +84,19 @@ public struct CalendarView: UIViewRepresentable {
 		self.visibleDateComponents = visibleDateComponents
 		self.selection = Selection.multiDate(selection)
 	}
+    
+    public init(availableDateRange: DateInterval = .init(start: .distantPast, end: .distantFuture), selection: @escaping (DateComponents) -> Void) {
+        self.availableDateRange = availableDateRange
+        self.visibleDateComponents = nil
+        self.selection = Selection.onTap(selection)
+    }
+
+    public init(availableDateRange: DateInterval = .init(start: .distantPast, end: .distantFuture), visibleDateComponents: Binding<DateComponents>, selection: @escaping (DateComponents) -> Void) {
+        self.availableDateRange = availableDateRange
+        self.visibleDateComponents = visibleDateComponents
+        self.selection = Selection.onTap(selection)
+    }
+
 	
 	// MARK: - UIViewRepresentable
 	
@@ -172,6 +186,13 @@ public struct CalendarView: UIViewRepresentable {
 				dateSelections.setSelectedDates(binding.wrappedValue, animated: canAnimate || binding.canAnimate)
 			}
 			
+        case .onTap(let onTap):
+            context.coordinator.onTapAction = onTap
+            
+            if calendarView.selectionBehavior == nil {
+                calendarView.selectionBehavior = UICalendarSelectionSingleDate(delegate: context.coordinator)
+            }
+            
 		case nil:
 			// setting selectionBehavior reloads the view which can interfere
 			// with animations and scrolling, so only set if actually changed
@@ -193,6 +214,7 @@ public struct CalendarView: UIViewRepresentable {
 		var selectedDates: Binding<[DateComponents]>?
 		var canSelectDate: ((DateComponents) -> Bool)?
 		var canDeselectDate: ((DateComponents) -> Bool)?
+        var onTapAction: ((DateComponents) -> Void)?
 	}
 	
 	public func makeCoordinator() -> Coordinator {
@@ -306,6 +328,12 @@ extension CalendarView.Coordinator: UICalendarSelectionSingleDateDelegate {
 	
 	public func dateSelection(_ selection: UICalendarSelectionSingleDate, didSelectDate dateComponents: DateComponents?) {
 		selectedDate?.wrappedValue = dateComponents
+        if let dateComponents, let onTapAction {
+            onTapAction(dateComponents)
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(300)) {
+                selection.selectedDate = nil
+            }
+        }
 	}
 }
 
